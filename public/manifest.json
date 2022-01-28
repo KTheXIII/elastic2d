@@ -1,0 +1,12 @@
+{
+  "name": "elastic collision",
+  "short_name": "elasty",
+  "description": "Simulation playground with Canvs2D",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "orientation": "portrait-primary",
+  "icons": [
+  ]
+}
