@@ -18,7 +18,10 @@
         "/static/app.css.proxy.js",
         "/static/App.js",
         "/static/index.js",
-        "/static/scripts/Elastic.js"
+        "/static/scripts/Elastic.js",
+        "/static/scripts/env.js",
+        "/static/scripts/Plot2.js",
+        "/static/scripts/Vec2.js"
       ]
     }
   },
