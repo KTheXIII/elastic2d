@@ -349,12 +349,12 @@ export class Elastic {
   get ratio(): number { return this.canvas.width / this.canvas.height }
 
   onMouseMove(e: MouseEvent) {
-    this.mouse.x = e.clientX
-    this.mouse.y = e.clientY
+    this.mouse.x = e.clientX * devicePixelRatio
+    this.mouse.y = e.clientY * devicePixelRatio
   }
   onMouseDown(e: MouseEvent) {
-    this.mouse.x = e.clientX
-    this.mouse.y = e.clientY
+    this.mouse.x = e.clientX * devicePixelRatio
+    this.mouse.y = e.clientY * devicePixelRatio
 
     if (e.button === 0) {
       this.mouse.isLeftDown = true
@@ -367,8 +367,8 @@ export class Elastic {
     }
   }
   onMouseUp(e: MouseEvent) {
-    this.mouse.x = e.clientX
-    this.mouse.y = e.clientY
+    this.mouse.x = e.clientX * devicePixelRatio
+    this.mouse.y = e.clientY * devicePixelRatio
 
     if (e.button === 0) {
       this.mouse.isLeftDown = false
