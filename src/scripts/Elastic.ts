@@ -1,7 +1,19 @@
+import {
+  IVec2,
+  vec2AB,
+  mag2,
+  norm2,
+  dot2
+} from '@scripts/Vec2'
+import { FORMATED_VERSION } from '@scripts/env'
+
+import { Plot2 } from '@scripts/Plot2'
+
 const MAX_ENTITIES      = 512
-const MAX_FRAME_SAMPLES = 8
-const MAX_SPEED         = 200
-const FRICTION          = 0.999
+const MAX_FRAME_SAMPLES = 4
+const MAX_SPEED         = 10
+const DEFAULT_DRAG      = 0.1
+const MAX_DATA_LENGTH   = 512
 
 interface IMouse {
   x: number
@@ -10,11 +22,6 @@ interface IMouse {
   isRightDown: boolean
   isLeftUp: boolean
   isRightUp: boolean
-}
-
-interface IVec2 {
-  x: number
-  y: number
 }
 
 function randomRange(min: number, max: number) {
@@ -35,32 +42,6 @@ function isPointCircleOverlap(x: number, y: number, tx: number, ty: number, r: n
   return d < r * r
 }
 
-function vec2AB(a: IVec2, b: IVec2): IVec2 {
-  return {
-    x: b.x - a.x,
-    y: b.y - a.y
-  }
-}
-function mag2(vector: IVec2) {
-  return Math.sqrt(vector.x * vector.x + vector.y * vector.y)
-}
-function norm2(vector: IVec2): IVec2 {
-  const mag = mag2(vector)
-  return {
-    x: vector.x / mag,
-    y: vector.y / mag
-  }
-}
-function dot2(a: IVec2, b: IVec2): number {
-  return a.x * b.x + a.y * b.y
-}
-function scale2(v: IVec2, s: number): IVec2 {
-  return {
-    x: v.x * s,
-    y: v.x * s
-  }
-}
-
 export class Elastic {
   constructor(parent: HTMLDivElement) {
     this.canvas = document.createElement('canvas')
@@ -76,6 +57,7 @@ export class Elastic {
   }
 
   async start() {
+    this.resize()
     await this.init()
     this.loop(-16)
   }
@@ -84,11 +66,15 @@ export class Elastic {
   }
 
   destroy() {
+    this.deleteAllEntities()
+
+    this.plots = []
     this.canvas.remove()
   }
 
   async init() {
     for (let i = 0; i < MAX_ENTITIES; i++) {
+      this.entitiesCount++
       this.positions.push({
         x: Math.random() * this.width,
         y: Math.random() * this.height
@@ -101,22 +87,50 @@ export class Elastic {
         x: 0,
         y: 0
       })
-      this.radiuses.push(Math.floor(randomRange(5, 16)))
+      const r = Math.floor(randomRange(5, 16))
+      this.radiuses.push(r)
+      this.masses.push(r * r * Math.PI)
       this.colors.push(`#ffffff`)
     }
+
+    this.plots.push(new Plot2(
+      { x: 0, y: this.height - 300 * devicePixelRatio },
+      { x: 600 * devicePixelRatio, y: 300 * devicePixelRatio }
+    ))
   }
 
   update(dt: number) {
     this.collidingPairs = []
+    if (this.mouse.isLeftDown && !this.prevMouse.isLeftDown) {
+      if (this.isAdd)
+        this.addEntity(this.mouse.x, this.mouse.y)
+      else
+        for (let i = 0; i < this.entitiesCount; i++) {
+          const { x, y } = this.positions[i]
+          if (isPointCircleOverlap(this.mouse.x, this.mouse.y, x, y, this.radiuses[i])) {
+            this.selected = i
+            break
+          } else {
+            this.selected = -1
+          }
+        }
+
+      if (this.isDelete) {
+        this.deleteEntity(this.selected)
+        this.selected = -1
+      }
+    }
 
     // Update positions
-    for (let i = 0; i < MAX_ENTITIES && !this.pauseUpdate; i++) {
-      this.velocities[i].x *= FRICTION
-      this.velocities[i].y *= FRICTION
+    for (let i = 0; i < this.entitiesCount && !this.pauseUpdate; i++) {
+      this.accelerations[i].x = this.velocities[i].x * -this.drag
+      this.accelerations[i].y = this.velocities[i].y * -this.drag
       this.velocities[i].x += this.accelerations[i].x * dt
       this.velocities[i].y += this.accelerations[i].y * dt
       this.positions[i].x  += this.velocities[i].x * dt
       this.positions[i].y  += this.velocities[i].y * dt
+      // this.velocities[i].x *= FRICTION
+      // this.velocities[i].y *= FRICTION
 
       // Check off screen edges and loop around
       if (this.positions[i].x - this.radiuses[i] < 0) {
@@ -134,26 +148,19 @@ export class Elastic {
 
       // Clamp velocity to zero when it is too small
       if (this.velocities[i].x * this.velocities[i].x +
-         this.velocities[i].y * this.velocities[i].y < 0.01) {
+         this.velocities[i].y * this.velocities[i].y < 0.1) {
         this.velocities[i].x = 0
         this.velocities[i].y = 0
       }
     }
 
     // Detect collisions and resolve them
-    for (let i = 0; i < MAX_ENTITIES; i++) {
+    for (let i = 0; i < this.entitiesCount; i++) {
       // Current entity is selected
       const { x, y } = this.positions[i]
       // const { x: vx, y: vy } = this.velocities[i]
 
-      if (this.mouse.isLeftDown && !this.prevMouse.isLeftDown ||
-         this.mouse.isRightDown && !this.prevMouse.isRightDown) {
-        if (isPointCircleOverlap(this.mouse.x, this.mouse.y, x, y, this.radiuses[i]) && this.selected === -1) {
-          this.selected = i
-        }
-      }
-
-      for (let j = 0; j < MAX_ENTITIES; j++) {
+      for (let j = 0; j < this.entitiesCount; j++) {
         if (i === j) continue
         // Target entity
         const { x: tx, y: ty }   = this.positions[j]
@@ -202,11 +209,11 @@ export class Elastic {
       const n2 = dot2(vb, nab)
 
       // Entities mass
-      const ma = this.radiuses[first]
-      const mb = this.radiuses[second]
+      const ma = this.masses[first]
+      const mb = this.masses[second]
       // Conservation of momentum in the normal direction
-      const m1 = (n1 * (ma - mb) + 2 * mb * n2) / (ma + mb)
-      const m2 = (n2 * (mb - ma) + 2 * ma * n1) / (ma + mb)
+      const m1 = ((ma - mb) * n1 + 2 * mb * n2) / (ma + mb)
+      const m2 = (2 * ma * n1 + (mb - ma) * n2) / (ma + mb)
 
       va.x = orthoAB.x * o1 + nab.x * m1
       va.y = orthoAB.y * o1 + nab.y * m1
@@ -214,10 +221,10 @@ export class Elastic {
       vb.y = orthoAB.y * o2 + nab.y * m2
     }
 
-    if (this.selected !== -1 && this.mouse.isLeftDown) {
+    if (this.selected !== -1 && this.mouse.isLeftDown && !this.isPool) {
       this.positions[this.selected].x = this.mouse.x
       this.positions[this.selected].y = this.mouse.y
-    } else if (this.selected !== -1 && this.mouse.isRightUp) {
+    } else if (this.selected !== -1 && this.mouse.isLeftUp && this.isPool) {
       const { x, y } = this.positions[this.selected]
       const vx = x - this.mouse.x
       const vy = y - this.mouse.y
@@ -226,24 +233,24 @@ export class Elastic {
       this.selected = -1
     }
 
+    // Check and resize canvas
     this.resize()
+    // Calculate average frame time
     if (this.frameTimes.length >= MAX_FRAME_SAMPLES) {
-      let frameSums = 0
-      for (let i = 0; i < MAX_FRAME_SAMPLES; i++) {
-        frameSums += this.frameTimes[i]
-      }
-      this.mFrameTime = frameSums / MAX_FRAME_SAMPLES
+      this.mFrameTime = this.frameTimes.reduce((a, b) => a + b, 0) / MAX_FRAME_SAMPLES
       this.frameTimes = []
     } else {
       this.frameTimes.push(dt)
     }
-
+    // Store previous mouse state
     this.prevMouse = { ...this.mouse }
   }
 
   draw(dt: number) {
     this.context.clearRect(0, 0, this.width, this.height)
-    for (let i = 0; i < MAX_ENTITIES; i++) {
+
+    // Draw entities
+    for (let i = 0; i < this.entitiesCount; i++) {
       const { x, y } = this.positions[i]
       const radius   = this.radiuses[i]
 
@@ -251,6 +258,8 @@ export class Elastic {
       this.context.arc(x, y, radius, 0, 2 * Math.PI)
       if (isPointCircleOverlap(this.mouse.x, this.mouse.y, x, y, radius)) {
         this.context.strokeStyle = '#ff0080'
+      } else if (this.selected === i) {
+        this.context.strokeStyle = '#00ff00'
       } else {
         this.context.strokeStyle = this.colors[i]
       }
@@ -267,6 +276,7 @@ export class Elastic {
       this.context.closePath()
     }
 
+    // Draw collision lines
     for (let i = 0; i < this.collidingPairs.length; i++) {
       const { first, second } = this.collidingPairs[i]
       const { x: x1, y: y1 } = this.positions[first]
@@ -280,7 +290,8 @@ export class Elastic {
       this.context.closePath()
     }
 
-    if (this.selected !== -1 && this.mouse.isRightDown) {
+    // Draw pool line
+    if (this.selected !== -1 && this.mouse.isLeftDown && this.isPool) {
       const { x, y } = this.positions[this.selected]
       this.context.beginPath()
       this.context.moveTo(x, y)
@@ -290,12 +301,40 @@ export class Elastic {
       this.context.closePath()
     }
 
+    // // Draw Plots
+    // for (let i = 0; i < this.plots.length; i++) {
+    //   this.plots[i].draw(this.context, dt)
+    // }
+
+    // Draw INFO
+
+    // Total system momentum in both axis
+    const mx = this.masses.reduce((a, b, i) => a + (b * this.velocities[i].x), 0)
+    const my = this.masses.reduce((a, b, i) => a + (b * this.velocities[i].y), 0)
+
     this.context.fillStyle = 'white'
-    this.context.font = `${12 * devicePixelRatio}px monospace`
+    const FONT_SIZE = 12 * devicePixelRatio
+    const XPAD = 10 * devicePixelRatio
+    this.context.font = `${FONT_SIZE}px 'Roboto Mono', monospace`
     this.context.fillText(`${this.mFrameTime.toFixed(3)} ms, ${(1 / this.mFrameTime).toFixed(1)} fps`,
-      10 * devicePixelRatio, (14 + 10) * devicePixelRatio)
-    this.context.fillText(`sim: ${this.pauseUpdate ? 'pause' : 'play'}`,
-      10 * devicePixelRatio, (14 + 10 + 14) * devicePixelRatio)
+      XPAD, (FONT_SIZE * 1 + 10))
+    this.context.fillText(`sim: ${this.pauseUpdate ? 'pause' : 'play'} (space)`,
+      XPAD, (FONT_SIZE * 2 + 10))
+    this.context.fillText(`mode: ${this.isPool ? 'pool' : 'move'} (p)`,
+      XPAD, (FONT_SIZE * 3 + 10))
+    this.context.fillText(`momentum: ${Math.abs((mx + my)).toFixed(2)} kg∙m/s (z: zero)`,
+      XPAD, (FONT_SIZE * 4 + 10))
+    this.context.fillText(`drag: ${this.drag.toFixed(2)} (+/-)`,
+      XPAD, (FONT_SIZE * 5 + 10))
+    this.context.fillText(`entities: ${this.entitiesCount} (0: delete all)`,
+      XPAD, (FONT_SIZE * 6 + 10))
+    this.context.fillStyle = `lightgray`
+    this.context.fillText(`hold e + mouse click to add entity`,
+      XPAD, (FONT_SIZE * 7 + 10))
+    this.context.fillText(`hold d + mouse click to delete entity`,
+      XPAD, (FONT_SIZE * 8 + 10))
+
+    this.context.fillText(FORMATED_VERSION, XPAD, this.height - 10)
   }
 
   loop(time: number) {
@@ -347,17 +386,81 @@ export class Elastic {
     e.preventDefault()
   }
   onKeyDown(e: KeyboardEvent) {
-    // TODO: Add key bindings
+    if (e.key === 'e') {
+      this.isAdd = true
+    } else if (e.key === 'd') {
+      this.isDelete = true
+    }
   }
   onKeyUp(e: KeyboardEvent) {
-    // TODO: Add key bindings
+    if (e.key === 'z') {
+      for (let i = 0; i < MAX_ENTITIES; i++) {
+        this.velocities[i].x = 0
+        this.velocities[i].y = 0
+        this.accelerations[i].x = 0
+        this.accelerations[i].y = 0
+      }
+    }
+    if (e.key === 'e') {
+      this.isAdd = false
+    } else if (e.key === 'd') {
+      this.isDelete = false
+    }
   }
   onKeyPress(e: KeyboardEvent) {
     if (e.key === ' ') {
       this.pauseUpdate = !this.pauseUpdate
     }
+
+    if (e.key === 'p') {
+      this.isPool = !this.isPool
+      this.selected = -1
+    }
+
+    if (e.key === '+') {
+      this.drag += 0.01
+      if (this.drag >= 1) this.drag = 1
+    } else if (e.key === '-') {
+      this.drag -= 0.01
+      if (this.drag <= 0) this.drag = 0
+    }
+    if (e.key === '0') {
+      this.deleteAllEntities()
+    }
   }
 
+  private addEntity(x: number, y: number) {
+    if (this.entitiesCount >= MAX_ENTITIES) return
+    this.positions.push({ x, y })
+    this.velocities.push({ x: 0, y: 0 })
+    this.accelerations.push({ x: 0, y: 0 })
+    const radius = randomRange(5, 25)
+    this.radiuses.push(radius)
+    this.masses.push(radius * radius * Math.PI)
+    this.colors.push('white')
+    this.entitiesCount++
+  }
+
+  private deleteEntity(index: number) {
+    if (index > -1 && index < this.entitiesCount) {
+      this.positions.splice(index, 1)
+      this.velocities.splice(index, 1)
+      this.accelerations.splice(index, 1)
+      this.radiuses.splice(index, 1)
+      this.masses.splice(index, 1)
+      this.colors.splice(index, 1)
+      this.entitiesCount--
+    }
+  }
+  private deleteAllEntities() {
+    this.positions = []
+    this.velocities = []
+    this.accelerations = []
+    this.radiuses = []
+    this.masses = []
+    this.colors = []
+    this.entitiesCount = 0
+  }
   private resize(): void {
     const displayWidth = Math.round(
       this.canvas.clientWidth * devicePixelRatio * this.resolution
@@ -371,6 +474,20 @@ export class Elastic {
     }
   }
 
+  private entitiesCount = 0
+  private pauseUpdate = false
+  private selected     = -1
+  private radiuses: number[] = []
+  private colors:   string[] = []
+  private positions:      IVec2[] = []
+  private velocities:     IVec2[] = []
+  private accelerations:  IVec2[] = []
+  private masses:        number[] = []
+  private collidingPairs: {first: number, second: number}[] = []
+
+  private plots: Plot2[] = []
+  private timeData: {x: number[], y: number[]} = { x: [], y: [] }
+
   private mouse: IMouse = {
     x: 0,
     y: 0,
@@ -380,15 +497,10 @@ export class Elastic {
     isRightUp: true,
   }
   private prevMouse: IMouse = { ...this.mouse }
-
-  private pauseUpdate = false
-  private selected     = -1
-  private radiuses: number[] = []
-  private colors:   string[] = []
-  private positions:      IVec2[] = []
-  private velocities:     IVec2[] = []
-  private accelerations:  IVec2[] = []
-  private collidingPairs: {first: number, second: number}[] = []
+  private isPool   = false
+  private isAdd    = false
+  private isDelete = false
+  private drag     = DEFAULT_DRAG
 
   private mFrameTime = 0  // mean frame time
   private frameTimes: number[] = []

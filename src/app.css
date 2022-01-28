@@ -9,6 +9,7 @@ html, body {
   background: #101010;
   display: grid;
   overflow: hidden;
+  font-family: "Roboto Mono", sans-serif;
 }
 
 .app {

@@ -1,4 +1,7 @@
-import React, { useRef, useEffect } from 'react'
+import React, {
+  useRef,
+  useEffect,
+} from 'react'
 import './app.css'
 
 import { Elastic } from '@scripts/Elastic'
@@ -16,7 +19,9 @@ export const App: React.FC = () => {
     const onMouseUp   = (e: MouseEvent) => elastic.onMouseUp(e)
     const onKeyDown   = (e: KeyboardEvent) => elastic.onKeyDown(e)
     const onKeyUp     = (e: KeyboardEvent) => elastic.onKeyUp(e)
-    const onKeyPress  = (e: KeyboardEvent) => elastic.onKeyPress(e)
+    const onKeyPress  = (e: KeyboardEvent) => {
+      elastic.onKeyPress(e)
+    }
     const onContextMenu = (e: MouseEvent) => elastic.onContextMenu(e)
     window.addEventListener('contextmenu', onContextMenu)
     window.addEventListener('mousemove', onMouseMove)
