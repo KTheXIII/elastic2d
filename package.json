@@ -1,6 +1,6 @@
 {
   "name": "elastic2d",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "KTheXIII",
   "description": "Elastic collisisions in 2D",
   "private": true,

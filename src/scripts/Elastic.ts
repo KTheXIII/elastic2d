@@ -9,7 +9,7 @@ import { FORMATED_VERSION } from '@scripts/env'
 
 import { Plot2 } from '@scripts/Plot2'
 
-const MAX_ENTITIES      = 512
+const MAX_ENTITIES      = 1152
 const MAX_FRAME_SAMPLES = 4
 const MAX_SPEED         = 10
 const DEFAULT_DRAG      = 0.1
@@ -129,8 +129,6 @@ export class Elastic {
       this.velocities[i].y += this.accelerations[i].y * dt
       this.positions[i].x  += this.velocities[i].x * dt
       this.positions[i].y  += this.velocities[i].y * dt
-      // this.velocities[i].x *= FRICTION
-      // this.velocities[i].y *= FRICTION
 
       // Check off screen edges and loop around
       if (this.positions[i].x - this.radiuses[i] < 0) {
