@@ -1,0 +1,1 @@
+import*as e from"../snowpack/env.js";import.meta.env=e;import o from"../snowpack/pkg/react.js";import t from"../snowpack/pkg/react-dom.js";import{App as r}from"./App.js";async function n(){t.render(o.createElement(o.StrictMode,null,o.createElement(r,null)),document.querySelector("#root"))}window.onload=n;

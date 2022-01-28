@@ -1,0 +1,28 @@
+{
+  "imports": {
+    "/index.html": {
+      "entry": [
+        "/static/index.js"
+      ],
+      "css": [
+        "/manifest.json",
+        "https://fonts.googleapis.com",
+        "https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@200;300&amp;family=Roboto:wght@100;300;400&amp;display=swap",
+        "https://fonts.gstatic.com"
+      ],
+      "js": [
+        "/snowpack/env.js",
+        "/snowpack/pkg/common/index-ae389540.js",
+        "/snowpack/pkg/react-dom.js",
+        "/snowpack/pkg/react.js",
+        "/static/app.css.proxy.js",
+        "/static/App.js",
+        "/static/index.js",
+        "/static/scripts/Elastic.js"
+      ]
+    }
+  },
+  "generated": {
+    "preloadedCSS": "/styles.css"
+  }
+}
